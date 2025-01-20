@@ -25,5 +25,12 @@ func NewChatServer() *ChatServer {
 	}
 }
 
+func (cs *ChatServer) broadcastMessage(message string) {
+	err := cs.natsConn.Publish("chat", []byte(message))
+	if err != nil {
+		log.Fatalf("Failed to broadcast message to chatserver: %v", err)
+	}
+}
+
 func main() {
 }
