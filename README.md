@@ -22,3 +22,10 @@ A simple command-line chatroom application written in Go using NATS for real-tim
 - CLI
 - Concurrency: Use Goroutines for handling multiple clients concurrently.
 - Networking
+
+## Setup
+
+1. **Run NATS server (using Docker):**
+   ```bash
+   docker-compose up -d
+   
