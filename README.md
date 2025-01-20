@@ -30,4 +30,8 @@ A simple command-line chatroom application written in Go using NATS for real-tim
    docker-compose up -d
    go run ./server/server.go
    go run ./server/client.go
-   
+
+## Test Commands
+
+- Type messages in one client, and they appear in all connected clients.
+- Use `/fusers` to list active users.
