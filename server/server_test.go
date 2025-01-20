@@ -104,3 +104,38 @@ func TestUserJoinAndLeave(t *testing.T) {
 		t.Errorf("Expected leave message not received")
 	}
 }
+
+func TestListActiveUsers(t *testing.T) {
+	server := startTestChatServer(t)
+	defer server.natsConn.Close()
+
+	client1 := connectTestClient(t)
+	defer client1.Close()
+
+	client2 := connectTestClient(t)
+	defer client2.Close()
+
+	// Client1 requests the list of active users
+	client1.Write([]byte("/fusers\n"))
+
+	// Capture the response
+	client1Scanner := bufio.NewScanner(client1)
+	var userList []string
+	for client1Scanner.Scan() {
+		line := client1Scanner.Text()
+		if strings.Contains(line, "Active users") || strings.Contains(line, "127.0.0.1") {
+			userList = append(userList, line)
+		}
+		if len(userList) >= 2 { // We expect at least two active users
+			break
+		}
+	}
+
+	if len(userList) < 2 {
+		t.Errorf("Expected at least 2 users in the active users list, got: %v", userList)
+	}
+
+	if !strings.Contains(userList[1], "127.0.0.1") {
+		t.Errorf("User list does not contain expected client addresses")
+	}
+}
