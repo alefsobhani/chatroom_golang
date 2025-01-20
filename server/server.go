@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/nats-io/nats.go"
 	"log"
 	"net"
@@ -54,6 +55,8 @@ func (cs *ChatServer) handleClient(conn net.Conn) {
 	cs.usersMu.Lock()
 	cs.users[clientAddr] = conn
 	cs.usersMu.Unlock()
+	
+	cs.broadcastMessage(fmt.Sprintf("%s joined the chat\n", clientAddr))
 
 }
 
