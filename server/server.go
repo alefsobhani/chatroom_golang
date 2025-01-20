@@ -46,5 +46,17 @@ func (cs *ChatServer) listUsers(conn net.Conn) {
 	}
 }
 
+// TODO: handle errors of this function in future
+func (cs *ChatServer) handleClient(conn net.Conn) {
+	defer conn.Close()
+	clientAddr := conn.RemoteAddr().String()
+
+	cs.usersMu.Lock()
+	cs.users[clientAddr] = conn
+	cs.usersMu.Unlock()
+
+}
+
 func main() {
+
 }
