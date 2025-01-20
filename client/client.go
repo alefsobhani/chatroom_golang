@@ -36,3 +36,10 @@ func (cc *ChatClient) sendMessages() {
 		}
 	}
 }
+
+func (cc *ChatClient) receiveMessages() {
+	scanner := bufio.NewScanner(cc.conn)
+	for scanner.Scan() {
+		fmt.Print(scanner.Text() + "\n")
+	}
+}
