@@ -27,6 +27,7 @@ A simple command-line chatroom application written in Go using NATS for real-tim
 
 1. **Run each command on separate terminal:**
    ```bash
+   go install -v github.com/nats-io/nats.go@latest
    docker-compose up -d
    go run ./server/server.go
    go run ./server/client.go
