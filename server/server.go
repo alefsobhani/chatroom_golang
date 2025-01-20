@@ -94,6 +94,25 @@ func (cs *ChatServer) handleClient(conn net.Conn) {
 
 }
 
-func main() {
+func (cs *ChatServer) Start(port string) {
+	listener, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
+	defer listener.Close()
 
+	log.Printf("Server started on port %s", port)
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Printf("Connection error: %v", err)
+			continue
+		}
+		go cs.handleClient(conn)
+	}
+}
+
+func main() {
+	server := NewChatServer()
+	server.Start("8080")
 }
