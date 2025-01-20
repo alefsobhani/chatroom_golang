@@ -32,5 +32,19 @@ func (cs *ChatServer) broadcastMessage(message string) {
 	}
 }
 
+func (cs *ChatServer) listUsers(conn net.Conn) {
+	cs.usersMu.RLock()
+	defer cs.usersMu.RUnlock()
+
+	_, err := conn.Write([]byte("Active users:\n"))
+	for addr := range cs.users {
+		_, err = conn.Write([]byte(addr + "\n"))
+	}
+
+	if err != nil {
+		log.Fatalf("Failed to make list users from chatserver: %v", err)
+	}
+}
+
 func main() {
 }
