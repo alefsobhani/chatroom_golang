@@ -87,6 +87,11 @@ func (cs *ChatServer) handleClient(conn net.Conn) {
 		}
 	}
 
+	cs.usersMu.Lock()
+	delete(cs.users, clientAddr)
+	cs.usersMu.Unlock()
+	cs.broadcastMessage(fmt.Sprintf("%s left the chat\n", clientAddr))
+
 }
 
 func main() {
