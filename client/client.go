@@ -42,4 +42,7 @@ func (cc *ChatClient) receiveMessages() {
 	for scanner.Scan() {
 		fmt.Print(scanner.Text() + "\n")
 	}
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading from server: %v", err)
+	}
 }
