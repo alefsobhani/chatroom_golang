@@ -46,3 +46,13 @@ func (cc *ChatClient) receiveMessages() {
 		log.Printf("Error reading from server: %v", err)
 	}
 }
+
+func main() {
+
+	client := NewChatClient("localhost:8080")
+	defer client.conn.Close()
+	
+	go client.receiveMessages()
+	client.sendMessages()
+
+}
