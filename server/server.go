@@ -6,6 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"log"
 	"net"
+	"os"
 	"sync"
 )
 
@@ -16,7 +17,13 @@ type ChatServer struct {
 }
 
 func NewChatServer() *ChatServer {
-	nc, err := nats.Connect(nats.DefaultURL)
+	// Read NATS URL from environment variable, default to localhost
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = nats.DefaultURL
+	}
+
+	nc, err := nats.Connect(natsURL)
 	if err != nil {
 		log.Fatalf("Failed to connect to NATS: %v", err)
 	}

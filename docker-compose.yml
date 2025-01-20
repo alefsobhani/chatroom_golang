@@ -1,7 +1,20 @@
-version: '3'
+version: "3.9"
 
 services:
   nats:
     image: nats:latest
+    container_name: nats-server
     ports:
-      - "4222:4222"
+      - "4222:4222" # Default NATS port
+      - "8222:8222" # NATS management interface (optional)
+
+  chat-server:
+    build:
+      context: .
+    container_name: chat-server
+    depends_on:
+      - nats
+    ports:
+      - "8080:8080" # Chat server port
+    environment:
+      - NATS_URL=nats://nats-server:4222
