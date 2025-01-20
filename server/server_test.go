@@ -63,3 +63,44 @@ func TestBroadcastMessage(t *testing.T) {
 		t.Errorf("Broadcast message not received by other clients")
 	}
 }
+
+func TestUserJoinAndLeave(t *testing.T) {
+	server := startTestChatServer(t)
+	defer server.natsConn.Close()
+
+	client1 := connectTestClient(t)
+	defer client1.Close()
+
+	client2 := connectTestClient(t)
+	defer client2.Close()
+
+	// Read join messages from client1
+	client1Scanner := bufio.NewScanner(client1)
+	var messages []string
+	var mu sync.Mutex
+	go func() {
+		for client1Scanner.Scan() {
+			mu.Lock()
+			messages = append(messages, client1Scanner.Text())
+			mu.Unlock()
+		}
+	}()
+
+	// Wait for client2's join message
+	time.Sleep(500 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	if len(messages) == 0 || !strings.Contains(messages[len(messages)-1], "joined the chat") {
+		t.Errorf("Expected join message not received")
+	}
+
+	// Close client2 and verify leave message
+	client2.Close()
+	time.Sleep(500 * time.Millisecond)
+
+	if len(messages) == 0 || !strings.Contains(messages[len(messages)-1], "left the chat") {
+		t.Errorf("Expected leave message not received")
+	}
+}
