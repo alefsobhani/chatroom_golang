@@ -55,8 +55,15 @@ func (cs *ChatServer) handleClient(conn net.Conn) {
 	cs.usersMu.Lock()
 	cs.users[clientAddr] = conn
 	cs.usersMu.Unlock()
-	
+
 	cs.broadcastMessage(fmt.Sprintf("%s joined the chat\n", clientAddr))
+	
+	sub, err := cs.natsConn.SubscribeSync("chat")
+	if err != nil {
+		log.Printf("Failed to subscribe to NATS: %v", err)
+		return
+	}
+	defer sub.Unsubscribe()
 
 }
 
