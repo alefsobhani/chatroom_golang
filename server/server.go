@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"log"
@@ -64,7 +65,7 @@ func (cs *ChatServer) handleClient(conn net.Conn) {
 		return
 	}
 	defer sub.Unsubscribe()
-	
+
 	go func() {
 		for {
 			msg, err := sub.NextMsg(0)
@@ -75,6 +76,16 @@ func (cs *ChatServer) handleClient(conn net.Conn) {
 			conn.Write(msg.Data)
 		}
 	}()
+
+	scanner := bufio.NewScanner(conn)
+	for scanner.Scan() {
+		text := scanner.Text()
+		if text == "/fusers" {
+			cs.listUsers(conn)
+		} else {
+			cs.natsConn.Publish("chat", []byte(fmt.Sprintf("%s: %s\n", clientAddr, text)))
+		}
+	}
 
 }
 
