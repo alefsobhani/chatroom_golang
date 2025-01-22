@@ -2,140 +2,173 @@ package main
 
 import (
 	"bufio"
+	"fmt"
+	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
 	"net"
-	"strings"
+	"os"
 	"sync"
 	"testing"
 	"time"
 )
 
-func startTestChatServer(t *testing.T) *ChatServer {
-	server := NewChatServer()
-	go func() {
-		server.Start("9090") // Use a different port for testing
-	}()
-	// Give the server some time to start
-	time.Sleep(500 * time.Millisecond)
-	return server
+func setupTestServer(t *testing.T) (*ChatServer, string) {
+	// Create a mock NATS server URL for testing
+	natsURL := "nats://127.0.0.1:4222"
+
+	// Set the environment variable for the NATS URL
+	os.Setenv("NATS_URL", natsURL)
+
+	// Start the mock NATS server
+	nc, err := nats.Connect(natsURL)
+	assert.NoError(t, err)
+
+	// Create a ChatServer instance
+	server := &ChatServer{
+		users:    make(map[string]net.Conn),
+		usersMu:  sync.RWMutex{},
+		natsConn: nc,
+		logger:   NewChatServer().logger,
+	}
+
+	return server, natsURL
 }
 
-func connectTestClient(t *testing.T) net.Conn {
-	conn, err := net.Dial("tcp", "localhost:9090")
-	if err != nil {
-		t.Fatalf("Failed to connect to the server: %v", err)
-	}
-	return conn
+func TestServerStart(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Start the server in a separate goroutine
+	go func() {
+		server.Start("9090")
+	}()
+
+	// Allow some time for the server to start
+	time.Sleep(1 * time.Second)
+
+	// Connect to the server
+	conn, err := net.Dial("tcp", "127.0.0.1:9090")
+	assert.NoError(t, err)
+	assert.NotNil(t, conn)
+
+	conn.Close()
 }
 
 func TestBroadcastMessage(t *testing.T) {
-	server := startTestChatServer(t)
-	defer server.natsConn.Close()
+	server, _ := setupTestServer(t)
 
-	client1 := connectTestClient(t)
-	defer client1.Close()
-
-	client2 := connectTestClient(t)
-	defer client2.Close()
-
-	// Goroutine to listen for messages on client2
+	// Capture the broadcast messages
 	var receivedMessages []string
-	var mu sync.Mutex
-	go func() {
-		client2Scanner := bufio.NewScanner(client2)
-		for client2Scanner.Scan() {
-			mu.Lock()
-			receivedMessages = append(receivedMessages, client2Scanner.Text())
-			mu.Unlock()
-		}
-	}()
+	sub, err := server.natsConn.Subscribe("chat", func(msg *nats.Msg) {
+		receivedMessages = append(receivedMessages, string(msg.Data))
+	})
+	assert.NoError(t, err)
+	defer sub.Unsubscribe()
 
-	// Client1 sends a message
-	message := "Hello, World!"
-	client1.Write([]byte(message + "\n"))
+	// Broadcast a message
+	server.broadcastMessage("Test message")
 
-	// Wait for the message to propagate
+	// Allow some time for the message to be received
 	time.Sleep(500 * time.Millisecond)
 
-	mu.Lock()
-	defer mu.Unlock()
-
-	if len(receivedMessages) == 0 || !strings.Contains(receivedMessages[len(receivedMessages)-1], message) {
-		t.Errorf("Broadcast message not received by other clients")
-	}
+	// Validate the broadcast message
+	assert.Len(t, receivedMessages, 1)
+	assert.Equal(t, "Test message", receivedMessages[0])
 }
 
-func TestUserJoinAndLeave(t *testing.T) {
-	server := startTestChatServer(t)
-	defer server.natsConn.Close()
+func TestListUsers(t *testing.T) {
+	server, _ := setupTestServer(t)
 
-	client1 := connectTestClient(t)
+	// Start the server in a separate goroutine
+	go func() {
+		server.Start("9091")
+	}()
+	time.Sleep(1 * time.Second)
+
+	// Connect multiple clients
+	client1, err := net.Dial("tcp", "127.0.0.1:9091")
+	assert.NoError(t, err)
 	defer client1.Close()
 
-	client2 := connectTestClient(t)
+	client2, err := net.Dial("tcp", "127.0.0.1:9091")
+	assert.NoError(t, err)
 	defer client2.Close()
 
-	// Read join messages from client1
-	client1Scanner := bufio.NewScanner(client1)
-	var messages []string
-	var mu sync.Mutex
-	go func() {
-		for client1Scanner.Scan() {
-			mu.Lock()
-			messages = append(messages, client1Scanner.Text())
-			mu.Unlock()
-		}
-	}()
+	// Send the `/fusers` command from client1
+	fmt.Fprintln(client1, "/fusers")
 
-	// Wait for client2's join message
-	time.Sleep(500 * time.Millisecond)
+	// Read the response
+	scanner := bufio.NewScanner(client1)
+	scanner.Scan()
+	output := scanner.Text()
 
-	mu.Lock()
-	defer mu.Unlock()
-
-	if len(messages) == 0 || !strings.Contains(messages[len(messages)-1], "joined the chat") {
-		t.Errorf("Expected join message not received")
-	}
-
-	// Close client2 and verify leave message
-	client2.Close()
-	time.Sleep(500 * time.Millisecond)
-
-	if len(messages) == 0 || !strings.Contains(messages[len(messages)-1], "left the chat") {
-		t.Errorf("Expected leave message not received")
-	}
+	// Validate the list of active users
+	assert.Contains(t, output, "Active users")
+	assert.Contains(t, output, client1.RemoteAddr().String())
+	assert.Contains(t, output, client2.RemoteAddr().String())
 }
 
-func TestListActiveUsers(t *testing.T) {
-	server := startTestChatServer(t)
-	defer server.natsConn.Close()
+func TestHandleClientDisconnection(t *testing.T) {
+	server, _ := setupTestServer(t)
 
-	client1 := connectTestClient(t)
-	defer client1.Close()
+	// Start the server in a separate goroutine
+	go func() {
+		server.Start("9092")
+	}()
+	time.Sleep(1 * time.Second)
 
-	client2 := connectTestClient(t)
-	defer client2.Close()
+	// Connect a client
+	client, err := net.Dial("tcp", "127.0.0.1:9092")
+	assert.NoError(t, err)
 
-	// Client1 requests the list of active users
-	client1.Write([]byte("/fusers\n"))
+	clientAddr := client.RemoteAddr().String()
 
-	// Capture the response
-	client1Scanner := bufio.NewScanner(client1)
-	var userList []string
-	for client1Scanner.Scan() {
-		line := client1Scanner.Text()
-		if strings.Contains(line, "Active users") || strings.Contains(line, "127.0.0.1") {
-			userList = append(userList, line)
-		}
-		if len(userList) >= 2 { // We expect at least two active users
-			break
-		}
-	}
+	// Ensure the client is added to the users list
+	server.usersMu.RLock()
+	_, exists := server.users[clientAddr]
+	server.usersMu.RUnlock()
+	assert.True(t, exists)
 
-	if len(userList) < 2 {
-		t.Errorf("Expected at least 2 users in the active users list, got: %v", userList)
-	}
+	// Disconnect the client
+	client.Close()
+	time.Sleep(500 * time.Millisecond)
 
-	if !strings.Contains(userList[1], "127.0.0.1") {
-		t.Errorf("User list does not contain expected client addresses")
-	}
+	// Ensure the client is removed from the users list
+	server.usersMu.RLock()
+	_, exists = server.users[clientAddr]
+	server.usersMu.RUnlock()
+	assert.False(t, exists)
+}
+
+func TestClientMessageHandling(t *testing.T) {
+	server, _ := setupTestServer(t)
+
+	// Start the server in a separate goroutine
+	go func() {
+		server.Start("9093")
+	}()
+	time.Sleep(1 * time.Second)
+
+	// Connect a client
+	client, err := net.Dial("tcp", "127.0.0.1:9093")
+	assert.NoError(t, err)
+	defer client.Close()
+
+	// Mock NATS subscriber to capture messages
+	var receivedMessages []string
+	sub, err := server.natsConn.Subscribe("chat", func(msg *nats.Msg) {
+		receivedMessages = append(receivedMessages, string(msg.Data))
+	})
+	assert.NoError(t, err)
+	defer sub.Unsubscribe()
+
+	// Send a message from the client
+	testMessage := "Hello, ChatServer!"
+	fmt.Fprintln(client, testMessage)
+
+	// Allow some time for the message to propagate
+	time.Sleep(500 * time.Millisecond)
+
+	// Validate the received message
+	assert.Len(t, receivedMessages, 1)
+	assert.Contains(t, receivedMessages[0], testMessage)
 }
