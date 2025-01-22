@@ -21,6 +21,14 @@ Verifies that the /fusers command lists all active users.
 ## How to Run Tests
 Run the tests using the go test command:
 
+1. Install dependencies:
+
+```bash
+go get -u github.com/nats-io/nats.go github.com/stretchr/testify
+```
+
+2. Run the test suite:
+
 ```bash
 go test -v
 ```
