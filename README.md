@@ -1,10 +1,12 @@
 # Chatroom Application
 
 A simple command-line chatroom application written in Go using NATS for real-time messaging.
+For more details, see the [Additional Information](Docs.md).
+
 
 ## Features
 - Join the chatroom and send messages.
-- View the list of active users using `/fusers`.
+- View the list of active users using `/users`.
 - Real-time messaging for all users in the chatroom.
 
 ## Requirements
